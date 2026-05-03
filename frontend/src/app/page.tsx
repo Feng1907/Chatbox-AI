@@ -20,7 +20,7 @@ export default function Home() {
     deleteDocument,
   } = useDocuments();
 
-  const { messages, isLoading, sendMessage, clearMessages } = useChat();
+  const { messages, isLoading, sendMessage, clearMessages, loadMessages, exportChat } = useChat();
 
   const activeDocument = documents.find((d) => d.id === activeDocId) ?? null;
 
@@ -28,11 +28,11 @@ export default function Home() {
     (id: string) => {
       if (id !== activeDocId) {
         setActiveDocId(id);
-        clearMessages();
+        loadMessages(id);
       }
       setSidebarOpen(false);
     },
-    [activeDocId, clearMessages],
+    [activeDocId, loadMessages],
   );
 
   const handleDeleteDocument = useCallback(
@@ -40,7 +40,7 @@ export default function Home() {
       const success = await deleteDocument(id);
       if (success && id === activeDocId) {
         setActiveDocId(null);
-        clearMessages();
+        clearMessages(id);
       }
     },
     [activeDocId, clearMessages, deleteDocument],
@@ -54,6 +54,14 @@ export default function Home() {
     [activeDocId, sendMessage],
   );
 
+  const handleClear = useCallback(() => {
+    clearMessages(activeDocId ?? undefined);
+  }, [activeDocId, clearMessages]);
+
+  const handleExport = useCallback(() => {
+    exportChat(activeDocument?.filename);
+  }, [activeDocument, exportChat]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* ── Mobile sidebar overlay ── */}
@@ -64,7 +72,7 @@ export default function Home() {
         />
       )}
 
-      {/* ── Sidebar (desktop: always visible, mobile: drawer) ── */}
+      {/* ── Sidebar ── */}
       <div
         className={clsx(
           'fixed inset-y-0 left-0 z-30 transition-transform duration-300 lg:relative lg:translate-x-0',
@@ -84,7 +92,7 @@ export default function Home() {
 
       {/* ── Main content ── */}
       <main className="flex-1 flex flex-col min-w-0 h-full">
-        {/* Mobile header with hamburger */}
+        {/* Mobile header */}
         <div className="flex-shrink-0 lg:hidden flex items-center gap-3 px-4 py-3 glass border-b border-gray-800/50">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -101,11 +109,12 @@ export default function Home() {
           )}
         </div>
 
-        {/* Chat interface fills remaining height */}
         <div className="flex-1 min-h-0">
           <ChatInterface
             messages={messages}
             onSend={handleSendMessage}
+            onClear={handleClear}
+            onExport={handleExport}
             activeDocument={activeDocument}
             isLoading={isLoading}
           />

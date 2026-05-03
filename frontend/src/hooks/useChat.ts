@@ -1,16 +1,42 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Message, Source } from '@/types';
 
 function generateId(): string {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const storageKey = (docId: string) => `rag_chat_history_${docId}`;
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+
+  // Save to localStorage when streaming finishes
+  useEffect(() => {
+    if (!isLoading && currentDocId && messages.length > 0) {
+      try {
+        localStorage.setItem(storageKey(currentDocId), JSON.stringify(messages));
+      } catch { /* quota exceeded or SSR */ }
+    }
+  }, [isLoading, currentDocId, messages]);
+
+  const loadMessages = useCallback((docId: string) => {
+    setCurrentDocId(docId);
+    setError(null);
+    try {
+      const raw = localStorage.getItem(storageKey(docId));
+      if (raw) {
+        const parsed: Message[] = JSON.parse(raw);
+        setMessages(parsed.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })));
+        return;
+      }
+    } catch { /* corrupted data */ }
+    setMessages([]);
+  }, []);
 
   const sendMessage = useCallback(
     async (question: string, docId: string): Promise<void> => {
@@ -18,8 +44,8 @@ export function useChat() {
 
       setError(null);
       setIsLoading(true);
+      setCurrentDocId(docId);
 
-      // Add user message immediately
       const userMessage: Message = {
         id: generateId(),
         role: 'user',
@@ -27,7 +53,6 @@ export function useChat() {
         timestamp: new Date(),
       };
 
-      // Add placeholder assistant message
       const assistantId = generateId();
       const assistantMessage: Message = {
         id: assistantId,
@@ -73,7 +98,6 @@ export function useChat() {
             const trimmed = line.trim();
             if (!trimmed) continue;
 
-            // Handle SSE format: "data: ..."
             if (trimmed.startsWith('data: ')) {
               const data = trimmed.slice(6);
 
@@ -81,23 +105,19 @@ export function useChat() {
                 break;
               }
 
-              // Check for sources marker
               if (data.startsWith('[SOURCES]')) {
                 try {
-                  const sourcesJson = data.slice(9);
-                  sources = JSON.parse(sourcesJson) as Source[];
+                  sources = JSON.parse(data.slice(9)) as Source[];
                 } catch {
                   console.warn('Failed to parse sources JSON');
                 }
                 continue;
               }
 
-              // Check for error
               if (data.startsWith('[ERROR]')) {
                 throw new Error(data.slice(7));
               }
 
-              // Regular content chunk
               accumulatedContent += data;
 
               setMessages((prev) =>
@@ -108,15 +128,12 @@ export function useChat() {
                 ),
               );
             } else if (trimmed.startsWith('[SOURCES]')) {
-              // Handle non-SSE sources format
               try {
-                const sourcesJson = trimmed.slice(9);
-                sources = JSON.parse(sourcesJson) as Source[];
+                sources = JSON.parse(trimmed.slice(9)) as Source[];
               } catch {
                 console.warn('Failed to parse sources JSON');
               }
             } else if (trimmed !== '[DONE]' && !trimmed.startsWith('event:') && !trimmed.startsWith(':')) {
-              // Plain text streaming (fallback)
               accumulatedContent += trimmed;
               setMessages((prev) =>
                 prev.map((msg) =>
@@ -129,7 +146,6 @@ export function useChat() {
           }
         }
 
-        // Finalize the assistant message
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantId
@@ -165,10 +181,41 @@ export function useChat() {
     [],
   );
 
-  const clearMessages = useCallback(() => {
+  const clearMessages = useCallback((docId?: string) => {
     setMessages([]);
     setError(null);
+    if (docId) {
+      try {
+        localStorage.removeItem(storageKey(docId));
+      } catch { /* ignore */ }
+    }
   }, []);
+
+  const exportChat = useCallback((filename?: string) => {
+    if (messages.length === 0) return;
+
+    const lines = messages.map((m) => {
+      const role = m.role === 'user' ? '**You**' : '**Assistant**';
+      const time = new Date(m.timestamp).toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      let text = `${role} _(${time})_\n\n${m.content}`;
+      if (m.sources && m.sources.length > 0) {
+        text += '\n\n> Sources: ' + m.sources.map((s) => s.source).join(', ');
+      }
+      return text;
+    });
+
+    const content = `# Chat Export\n\n${lines.join('\n\n---\n\n')}`;
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename ? `${filename}_chat.md` : 'chat_export.md';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [messages]);
 
   return {
     messages,
@@ -176,5 +223,7 @@ export function useChat() {
     error,
     sendMessage,
     clearMessages,
+    loadMessages,
+    exportChat,
   };
 }
