@@ -9,7 +9,12 @@ import {
   Check,
 } from 'lucide-react';
 import clsx from 'clsx';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Message, Source } from '@/types';
+import { useTheme } from '@/contexts/ThemeContext';
 
 /* ── Helpers ── */
 function formatTime(date: Date): string {
@@ -24,44 +29,142 @@ function getFileIcon(filename: string): string {
   return '📎';
 }
 
-/* ── Inline "markdown" renderer ── */
-function renderContent(text: string) {
-  const lines = text.split('\n');
+/* ── Code block with copy button ── */
+function CodeBlock({ language, value, theme }: { language: string; value: string; theme: 'dark' | 'light' }) {
+  const [copied, setCopied] = useState(false);
 
-  return lines.map((line, i) => {
-    // Bold: **text**
-    const parts = line.split(/(\*\*[^*]+\*\*)/g);
-    const rendered = parts.map((part, j) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={j}>{part.slice(2, -2)}</strong>;
-      }
-      // Inline code: `code`
-      const codeParts = part.split(/(`[^`]+`)/g);
-      if (codeParts.length > 1) {
-        return codeParts.map((cp, k) => {
-          if (cp.startsWith('`') && cp.endsWith('`')) {
+  const copy = useCallback(async () => {
+    await navigator.clipboard.writeText(value).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [value]);
+
+  return (
+    <div className="relative group/code my-3 rounded-xl overflow-hidden border border-gray-700">
+      {/* Language label + copy button */}
+      <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 border-b border-gray-700">
+        <span className="text-xs text-gray-400 font-mono">{language || 'code'}</span>
+        <button
+          onClick={copy}
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors opacity-0 group-hover/code:opacity-100"
+        >
+          {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+          <span>{copied ? 'Copied!' : 'Copy'}</span>
+        </button>
+      </div>
+      <SyntaxHighlighter
+        language={language || 'text'}
+        style={theme === 'light' ? oneLight : oneDark}
+        customStyle={{ margin: 0, borderRadius: 0, fontSize: '0.8rem', background: 'transparent' }}
+        showLineNumbers={value.split('\n').length > 5}
+        wrapLines
+      >
+        {value}
+      </SyntaxHighlighter>
+    </div>
+  );
+}
+
+/* ── Markdown renderer ── */
+function MarkdownContent({ content, theme }: { content: string; theme: 'dark' | 'light' }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        code({ className, children, ...props }) {
+          const match = /language-(\w+)/.exec(className || '');
+          const isBlock = !props.ref && String(children).includes('\n');
+          if (isBlock || match) {
             return (
-              <code
-                key={k}
-                className="font-mono text-sm bg-purple-500/15 border border-purple-500/25 rounded px-1.5 py-0.5 text-purple-300"
-              >
-                {cp.slice(1, -1)}
-              </code>
+              <CodeBlock
+                language={match?.[1] ?? ''}
+                value={String(children).replace(/\n$/, '')}
+                theme={theme}
+              />
             );
           }
-          return cp;
-        });
-      }
-      return part;
-    });
-
-    return (
-      <span key={i}>
-        {rendered}
-        {i < lines.length - 1 && <br />}
-      </span>
-    );
-  });
+          return (
+            <code
+              className="font-mono text-sm bg-purple-500/15 border border-purple-500/25 rounded px-1.5 py-0.5 text-purple-300"
+              {...props}
+            >
+              {children}
+            </code>
+          );
+        },
+        p({ children }) {
+          return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>;
+        },
+        h1({ children }) {
+          return <h1 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h1>;
+        },
+        h2({ children }) {
+          return <h2 className="text-base font-semibold mb-2 mt-3 first:mt-0">{children}</h2>;
+        },
+        h3({ children }) {
+          return <h3 className="text-sm font-semibold mb-1.5 mt-2 first:mt-0">{children}</h3>;
+        },
+        ul({ children }) {
+          return <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>;
+        },
+        ol({ children }) {
+          return <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>;
+        },
+        li({ children }) {
+          return <li className="leading-relaxed">{children}</li>;
+        },
+        blockquote({ children }) {
+          return (
+            <blockquote className="border-l-2 border-purple-500/60 pl-3 my-2 text-gray-400 italic">
+              {children}
+            </blockquote>
+          );
+        },
+        strong({ children }) {
+          return <strong className="font-semibold text-gray-100">{children}</strong>;
+        },
+        em({ children }) {
+          return <em className="italic text-gray-300">{children}</em>;
+        },
+        a({ href, children }) {
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-400 hover:text-purple-300 underline underline-offset-2"
+            >
+              {children}
+            </a>
+          );
+        },
+        table({ children }) {
+          return (
+            <div className="overflow-x-auto my-3">
+              <table className="w-full text-sm border-collapse">{children}</table>
+            </div>
+          );
+        },
+        th({ children }) {
+          return (
+            <th className="px-3 py-2 text-left font-semibold bg-gray-800/60 border border-gray-700">
+              {children}
+            </th>
+          );
+        },
+        td({ children }) {
+          return (
+            <td className="px-3 py-2 border border-gray-700">{children}</td>
+          );
+        },
+        hr() {
+          return <hr className="border-gray-700 my-3" />;
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 }
 
 /* ── Source citation card ── */
@@ -124,6 +227,7 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
+  const { theme } = useTheme();
 
   const copyToClipboard = useCallback(async () => {
     try {
@@ -131,7 +235,6 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       const el = document.createElement('textarea');
       el.value = message.content;
       document.body.appendChild(el);
@@ -172,7 +275,11 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         >
           {/* Content */}
           <div className="message-content">
-            {renderContent(message.content)}
+            {isUser ? (
+              <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>
+            ) : (
+              <MarkdownContent content={message.content} theme={theme} />
+            )}
             {message.isStreaming && (
               <span className="cursor-blink" aria-hidden="true" />
             )}
@@ -206,7 +313,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         </span>
       </div>
 
-      {/* User avatar placeholder to maintain alignment */}
+      {/* User avatar */}
       {isUser && (
         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-medium text-white mb-1 shadow">
           U

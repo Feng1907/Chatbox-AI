@@ -17,7 +17,11 @@ import {
   Sparkles,
   FolderOpen,
   Hash,
+  Sun,
+  Moon,
+  BarChart2,
 } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
 import clsx from 'clsx';
 import type { Document } from '@/types';
 
@@ -297,6 +301,51 @@ interface SidebarProps {
   uploadProgress: number;
 }
 
+/* ── Stats panel ── */
+function StatsPanel({ documents }: { documents: Document[] }) {
+  const totalChunks = documents.reduce((sum, d) => sum + d.chunk_count, 0);
+
+  const totalQueries = (() => {
+    try {
+      let count = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('rag_chat_history_')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const msgs = JSON.parse(raw) as { role: string }[];
+            count += msgs.filter((m) => m.role === 'user').length;
+          }
+        }
+      }
+      return count;
+    } catch {
+      return 0;
+    }
+  })();
+
+  return (
+    <div className="flex-shrink-0 px-4 py-3 border-t border-gray-800/50">
+      <div className="flex items-center gap-1.5 mb-2">
+        <BarChart2 className="w-3.5 h-3.5 text-purple-400" />
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Stats</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: 'Docs', value: documents.length },
+          { label: 'Chunks', value: totalChunks },
+          { label: 'Queries', value: totalQueries },
+        ].map(({ label, value }) => (
+          <div key={label} className="glass-card rounded-lg px-2 py-2 text-center">
+            <p className="text-base font-bold gradient-text tabular-nums">{value}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Sidebar ── */
 export default function Sidebar({
   documents,
@@ -307,18 +356,30 @@ export default function Sidebar({
   isUploading,
   uploadProgress,
 }: SidebarProps) {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <aside className="w-72 flex-shrink-0 h-full flex flex-col glass border-r border-gray-800/50">
       {/* ── Logo / Title ── */}
       <div className="flex-shrink-0 px-5 py-5 border-b border-gray-800/50">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl gradient-bg flex items-center justify-center shadow-glow-purple">
-            <Sparkles className="w-4 h-4 text-white" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl gradient-bg flex items-center justify-center shadow-glow-purple">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold gradient-text leading-none">RAG Chatbot</h1>
+              <p className="text-xs text-gray-500 mt-0.5">AI Document Assistant</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold gradient-text leading-none">RAG Chatbot</h1>
-            <p className="text-xs text-gray-500 mt-0.5">AI Document Assistant</p>
-          </div>
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="w-8 h-8 rounded-lg glass flex items-center justify-center text-gray-400 hover:text-gray-200 hover:border-purple-500/50 transition-all duration-200"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
@@ -379,6 +440,9 @@ export default function Sidebar({
           </div>
         )}
       </div>
+
+      {/* ── Stats panel ── */}
+      <StatsPanel documents={documents} />
 
       {/* ── Active document indicator ── */}
       {activeDocId && (

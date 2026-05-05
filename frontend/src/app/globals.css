@@ -230,3 +230,68 @@ body {
 .message-content li {
   margin-bottom: 0.25rem;
 }
+
+/* ── Light theme overrides ── */
+html.light {
+  --background: #f8fafc;
+  --card: #ffffff;
+  --card-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --border-subtle: #cbd5e1;
+  color-scheme: light;
+}
+
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+html.light .glass {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(203, 213, 225, 0.8) !important;
+}
+
+html.light .glass-card {
+  background: rgba(241, 245, 249, 0.95) !important;
+  border-color: rgba(203, 213, 225, 0.6) !important;
+}
+
+html.light .text-gray-100,
+html.light .text-gray-200 { color: #1e293b !important; }
+
+html.light .text-gray-300 { color: #334155 !important; }
+
+html.light .text-gray-400 { color: #475569 !important; }
+
+html.light .text-gray-500 { color: #64748b !important; }
+
+html.light .text-gray-600 { color: #94a3b8 !important; }
+
+html.light .text-gray-700 { color: #cbd5e1 !important; }
+
+html.light .bg-gray-800 { background-color: #f1f5f9 !important; }
+
+html.light .bg-gray-800\/60 { background-color: rgba(241, 245, 249, 0.6) !important; }
+
+html.light .border-gray-700 { border-color: #cbd5e1 !important; }
+
+html.light .border-gray-800 { border-color: #e2e8f0 !important; }
+
+html.light .border-gray-800\/50 { border-color: rgba(226, 232, 240, 0.5) !important; }
+
+html.light .bg-background { background-color: #f8fafc !important; }
+
+html.light ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+
+html.light .message-content strong { color: #1e293b; }
+
+html.light .message-content code {
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.2);
+  color: #6d28d9;
+}
+
+html.light .message-content pre {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: #e2e8f0;
+}
