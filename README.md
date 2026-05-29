@@ -100,7 +100,7 @@ AI được cấu hình với prompt nghiêm ngặt:
 ## API Endpoints
 
 | Method | Endpoint | Mô tả |
-|---|---|---|
+
 | POST | `/api/upload` | Upload tài liệu (PDF/TXT/MD) |
 | GET | `/api/documents` | Danh sách tài liệu đã upload |
 | DELETE | `/api/documents/{id}` | Xóa tài liệu |
